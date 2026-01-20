@@ -12,9 +12,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Start
 
-**For evaluation (recommended first step):**
+**Run all experiments (IID + OOD + UniRouter):**
 ```bash
-bash main/run_experiment.sh  # Run complete pipeline with all methods
+bash run.sh  # Complete pipeline - trains and evaluates all methods
+```
+
+**For IID evaluation only (recommended first step):**
+```bash
+bash main/run_experiment.sh  # Run IID pipeline with all methods
 ```
 
 **For interactive demo:**
@@ -332,6 +337,22 @@ python check_data.py
 # Inspects data files and validates CSV structure
 ```
 
+### Running Tests
+
+**Validation tests (not CI, but useful for development):**
+```bash
+# Test baseline implementations after refactoring
+python tests/test_baselines_split.py
+
+# Test sklearn predictor implementation
+python tests/test_sklearn_refactor.py
+
+# Test API refactoring
+python tests/test_refactor_api.py
+```
+
+**Note**: Tests may create temporary files in `./test_checkpoints/` and `./test_plots/`
+
 ### Comparison and Training Scripts
 
 **Method Comparison:**
@@ -450,6 +471,12 @@ Unified results directory for all evaluation types:
 ### Visualization (`plots/`)
 - Confusion matrices from predictor training
 - Performance comparison plots
+
+### Logs (`logs/`)
+Created by `run.sh` to capture experiment outputs:
+- `run_ood_experiment.log`: OOD evaluation logs
+- `run_experiment.log`: IID evaluation logs
+- `run_unirouter_experiment.log`: UniRouter comparison logs
 
 ## Data Format
 
@@ -821,6 +848,12 @@ main/
 - `demo/embedder.py` → Query embeddings
 - `demo/visualizer.py` → Plotly visualizations
 
+**Ablation studies:**
+- `ablation/` → Embedding ablation experiments
+  - Tests different embedding models (e.g., LightGBM, alternative embedders)
+  - Separate from main evaluation pipeline
+  - Run with `bash ablation/run_ablation_study.sh`
+
 ## Environment and Dependencies
 
 **Python Environment:**
@@ -849,3 +882,27 @@ main/
 - All experiments use fixed seed (42)
 - Centralized DatasetManager ensures all models see identical splits
 - Checkpoints provided for reproducibility
+
+## Important Development Notes
+
+### Recent Refactoring (See REFACTORING_STATUS.md)
+
+The codebase has undergone API standardization to follow sklearn conventions:
+
+**Baseline API Changes:**
+- All baselines now use `fit(X_train, y_train)` and `predict(X_test)`
+- Test data is no longer stored in baseline objects
+- No evaluation/plotting during training (separation of concerns)
+- Applied to: CARROT-KNN, CARROT-Linear, MIRT, NIRT
+
+**Critical Bug Fixes:**
+1. **Token Count Prediction**: Fixed unrealistic use of actual token counts in routing
+   - Now uses: `min(token_limit, predicted_unlimited_count)` for limited budgets
+   - Ensures realistic evaluation (router cannot know actual usage before inference)
+   - Fixed in both `ood_evaluation/run_ood.py` and `main/shared/llm_loader.py`
+
+2. **IRT Cost Calculation**: Fixed IRT baselines using true token counts
+   - Now uses constant mean token count (cost ∝ model_size only)
+   - Aligns with realistic routing scenario
+
+**Impact**: These fixes resolved performance inversions and ensure consistent evaluation across IID and OOD pipelines.
